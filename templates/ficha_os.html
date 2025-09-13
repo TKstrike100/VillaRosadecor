@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Ficha Técnica{% endblock %}
+
+{% block content %}
+<style>
+@media print {
+    body {
+        font-family: Arial, sans-serif;
+        color: #000;
+        background: #fff;
+        margin: 2cm;
+    }
+
+    .no-print {
+        display: none;
+    }
+
+    h2 {
+        text-align: center;
+        font-size: 22px;
+        margin-bottom: 20px;
+    }
+
+    p {
+        font-size: 14px;
+        margin: 6px 0;
+    }
+
+    hr {
+        border: none;
+        border-top: 1px solid #999;
+        margin: 20px 0;
+    }
+
+    ul {
+        padding-left: 20px;
+        font-size: 14px;
+    }
+
+    footer {
+        position: fixed;
+        bottom: 1cm;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 12px;
+        color: #555;
+    }
+}
+</style>
+
+<div class="border p-4 rounded">
+  <h2 class="text-center">Ficha Técnica - OS #{{ ordem[0] }}</h2>
+
+  <p><strong>Cliente:</strong> {{ cliente }}</p>
+  <p><strong>Data:</strong> {{ ordem[2] }} &nbsp; <strong>Hora:</strong> {{ ordem[3] }}</p>
+  <p><strong>Local de Instalação:</strong> {{ ordem[4] }}</p>
+
+  <hr>
+  <h4 class="mt-4">Peças incluídas na OS</h4>
+
+{% for item in itens %}
+  <div class="mb-4 p-3 border rounded">
+    <p><strong>Tipo:</strong> {{ item[2] }}</p>
+    <p><strong>Altura:</strong> {{ item[3] }} m</p>
+    <p><strong>Comprimento:</strong> {{ item[4] }} m</p>
+    <p><strong>Material:</strong> {{ item[5] }}</p>
+
+    {% set altura = item[3]|float %}
+    {% set comprimento = item[4]|float %}
+    {% set area = altura * comprimento %}
+
+    {% if item[2] == 'Cortina' %}
+      {% set suportes = (comprimento / 1.5)|round(0, 'ceil') %}
+      <p><strong>Estimativa técnica:</strong> {{ area|round(2) }} m² de tecido | {{ suportes if suportes >= 2 else 2 }} suportes</p>
+    {% elif item[2] == 'Persiana' %}
+      <p><strong>Estimativa técnica:</strong> {{ area|round(2) }} m² de tecido</p>
+    {% else %}
+      <p><strong>Estimativa técnica:</strong> —</p>
+    {% endif %}
+
+    {% if item[2] in ['Cortina', 'Persiana'] and (altura > 4 or comprimento > 4) %}
+      <p class="text-warning"><strong>⚠️ Recomendação:</strong> uso de escada ou andaime sugerido para instalação.</p>
+    {% endif %}
+  </div>
+{% endfor %}
+
+  <p><strong>Status da OS:</strong> {{ ordem[8] }}</p>
+
+  <div class="no-print text-center mt-4">
+    <button onclick="window.print()" class="btn btn-outline-dark">🖨️ Imprimir Ficha Técnica</button>
+    <a href="/ordens_servico" class="btn btn-secondary">Voltar</a>
+  </div>
+</div>
+    </div>
+</div>
+{% endblock %}

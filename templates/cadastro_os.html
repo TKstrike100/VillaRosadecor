@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}Nova Ordem de Serviço{% endblock %}
+
+{% block content %}
+<h2>Cadastrar Ordem de Serviço</h2>
+
+<form method="POST" action="/cadastro_os" class="row g-3">
+
+  <div class="col-md-6">
+    <label for="cliente">Cliente:</label>
+    <select name="cliente" class="form-select" required>
+      <option value="">Selecione o cliente</option>
+      {% for cliente in clientes %}
+        <option value="{{ cliente[0] }}">{{ cliente[1] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Data:</label>
+    <input type="date" name="data" class="form-control" required>
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label">Hora:</label>
+    <input type="time" name="hora" class="form-control" required>
+  </div>
+
+  <div class="col-md-12">
+    <label class="form-label">Local:</label>
+    <input type="text" name="local" class="form-control" required>
+  </div>
+
+  <!-- Itens da OS -->
+  <h5 class="mt-4">Peças da Ordem de Serviço</h5>
+  <div id="itens-container">
+    <div class="row g-3 mb-3">
+      <div class="col-md-3">
+        <label for="tipo" class="form-label">Tipo</label>
+        <select name="tipo[]" class="form-select" required>
+          <option value="">Selecione</option>
+          <option value="Cortina">Cortina</option>
+          <option value="Persiana">Persiana</option>
+          <option value="Papel de Parede">Papel de Parede</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label for="altura" class="form-label">Altura (m)</label>
+        <input type="number" name="altura[]" class="form-control" step="0.01" required>
+      </div>
+      <div class="col-md-3">
+        <label for="comprimento" class="form-label">Comprimento (m)</label>
+        <input type="number" name="comprimento[]" class="form-control" step="0.01" required>
+      </div>
+      <div class="col-md-3">
+        <label for="material" class="form-label">Material</label>
+        <input type="text" name="material[]" class="form-control" required>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <button type="button" class="btn btn-outline-primary" onclick="adicionarItem()">➕ Adicionar mais</button>
+  </div>
+
+  <script>
+    function adicionarItem() {
+      const container = document.getElementById('itens-container');
+      const novoItem = container.firstElementChild.cloneNode(true);
+      container.appendChild(novoItem);
+    }
+  </script>
+
+  <div class="col-md-12">
+    <label class="form-label">Observações:</label>
+    <textarea name="observacoes" class="form-control" rows="3"></textarea>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label">Status:</label>
+    <select name="status" class="form-select">
+      <option value="Pendente">Pendente</option>
+      <option value="Instalado">Instalado</option>
+      <option value="Em manutenção">Em manutenção</option>
+      <option value="Danificado">Danificado</option>
+    </select>
+  </div>
+
+  <div class="col-12">
+    <button type="submit" class="btn btn-success">Salvar OS</button>
+    <a href="/ordens_servico" class="btn btn-secondary">Cancelar</a>
+  </div>
+
+</form>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Novo Produto no Estoque{% endblock %}
+
+{% block content %}
+<h2>Cadastrar Produto no Estoque</h2>
+<form method="POST" class="row g-3">
+    <div class="col-md-6">
+        <label class="form-label">Nome do Produto:</label>
+        <input type="text" name="nome_produto" class="form-control" required>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Tipo:</label>
+        <select name="tipo" class="form-select" required>
+            <option value="Persiana">Persiana</option>
+            <option value="Cortina">Cortina</option>
+            <option value="Toldo">Toldo</option>
+            <option value="Papel de Parede">Papel de Parede</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Quantidade:</label>
+        <input type="number" name="quantidade" class="form-control" min="1" required>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Status:</label>
+        <select name="status" class="form-select" required>
+            <option value="Pendente">Pendente</option>
+            <option value="Instalado">Instalado</option>
+            <option value="Em manutenção">Em manutenção</option>
+            <option value="Danificado">Danificado</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Cliente (se vinculado):</label>
+        <select name="cliente_id" class="form-select">
+            <option value="">— Nenhum —</option>
+            {% for cliente in clientes %}
+                <option value="{{ cliente[0] }}">{{ cliente[1] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Data de Entrada:</label>
+        <input type="date" name="data_entrada" class="form-control" required>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Observações:</label>
+        <textarea name="observacoes" class="form-control" rows="2"></textarea>
+    </div>
+    <div class="col-12">
+        <button type="submit" class="btn btn-success">Salvar Produto</button>
+        <a href="/estoque" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

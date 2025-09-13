@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}Início{% endblock %}
+
+{% block content %}
+<div class="text-center mt-4">
+    <h2 class="mb-3">Bem-vindo ao Sistema Villa Rosa Decor</h2>
+    <p class="lead">Gerencie seus clientes, ordens de serviço e estoque com eficiência e estilo.</p>
+
+    <div class="row mt-5">
+        <div class="col-md-4 mb-3">
+            <a href="/clientes" class="btn btn-outline-primary w-100">👥 Ver Clientes</a>
+        </div>
+        <div class="col-md-4 mb-3">
+            <a href="/ordens_servico" class="btn btn-outline-success w-100">📋 Ver Ordens de Serviço</a>
+        </div>
+        <div class="col-md-4 mb-3">
+            <a href="/estoque" class="btn btn-outline-warning w-100">📦 Ver Estoque</a>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-4 mb-3">
+            <a href="/cadastro_cliente" class="btn btn-primary w-100">➕ Novo Cliente</a>
+        </div>
+        <div class="col-md-4 mb-3">
+            <a href="/cadastro_os" class="btn btn-success w-100">➕ Nova OS</a>
+        </div>
+        <div class="col-md-4 mb-3">
+            <a href="/cadastro_estoque" class="btn btn-warning w-100">➕ Novo Produto</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Villa Rosa Decor{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 70px;
+        }
+        .navbar-brand {
+            font-family: 'Georgia', serif;
+            font-size: 24px;
+            color: #8B004B;
+        }
+        .navbar {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+        }
+        footer {
+            margin-top: 40px;
+            padding: 20px;
+            text-align: center;
+            color: #777;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar fixed-top navbar-expand-lg shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Villa Rosa <em>Decor</em></a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="menu">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="/clientes">Clientes</a></li>
+                <li class="nav-item"><a class="nav-link" href="/ordens_servico">Ordens de Serviço</a></li>
+                <li class="nav-item"><a class="nav-link" href="/estoque">Estoque</a></li>
+                <li class="nav-item"><a class="nav-link" href="/cadastro_cliente">Novo Cliente</a></li>
+                <li class="nav-item"><a class="nav-link" href="/cadastro_os">Nova OS</a></li>
+                <li class="nav-item"><a class="nav-link" href="/cadastro_estoque">Novo Produto</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    {% block content %}
+    <!-- Conteúdo específico de cada página -->
+    {% endblock %}
+</div>
+
+<footer>
+    &copy; {{ now.year }} Villa Rosa Decor — Sistema de Gestão
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

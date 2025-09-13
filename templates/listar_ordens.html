@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}Ordens de Serviço{% endblock %}
+
+{% block content %}
+<h2>Ordens de Serviço</h2>
+
+<form method="POST" action="/ordens_servico" class="mb-3">
+    <input type="text" name="filtro" class="form-control" placeholder="Buscar por cliente ou status">
+</form>
+
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>ID</th><th>Cliente</th><th>Data</th><th>Hora</th><th>Local</th>
+            <th>Comprimento</th><th>Altura</th><th>Materiais</th><th>Status</th><th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ordem in ordens %}
+        <tr>
+            <td>{{ ordem[0] }}</td><td>{{ ordem[1] }}</td><td>{{ ordem[2] }}</td><td>{{ ordem[3] }}</td>
+            <td>{{ ordem[4] }}</td><td>{{ ordem[5] }} m</td><td>{{ ordem[6] }} m</td>
+            <td>{{ ordem[7] }}</td><td>{{ ordem[8] }}</td>
+            <td>
+                <a href="/editar_os/{{ ordem[0] }}" class="btn btn-sm btn-primary">Editar</a>
+                <a href="/excluir_os/{{ ordem[0] }}" class="btn btn-sm btn-danger" onclick="return confirm('Excluir OS?')">Excluir</a>
+                <a href="/ficha_os/{{ ordem[0] }}" class="btn btn-sm btn-secondary">Ficha Técnica</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

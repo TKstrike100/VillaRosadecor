@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Ordem de Serviço{% endblock %}
+
+{% block content %}
+<h2>Editar Ordem de Serviço</h2>
+
+<form method="POST" action="/editar_os/{{ ordem[0] }}" class="row g-3">
+
+  <!-- Dados principais -->
+  <div class="col-md-6">
+    <label>Cliente:</label>
+    <select name="cliente_id" class="form-select" required>
+      {% for cliente in clientes %}
+        <option value="{{ cliente[0] }}" {% if cliente[0] == ordem[1] %}selected{% endif %}>{{ cliente[1] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-3">
+    <label>Data:</label>
+    <input type="date" name="data_servico" class="form-control" value="{{ ordem[2] }}" required>
+  </div>
+
+  <div class="col-md-3">
+    <label>Hora:</label>
+    <input type="time" name="hora_servico" class="form-control" value="{{ ordem[3] }}" required>
+  </div>
+
+  <div class="col-md-12">
+    <label>Local:</label>
+    <input type="text" name="local_servico" class="form-control" value="{{ ordem[4] }}">
+  </div>
+
+  <div class="col-md-12">
+    <label>Observações:</label>
+    <textarea name="materiais" class="form-control">{{ ordem[5] }}</textarea>
+  </div>
+
+  <div class="col-md-6">
+    <label>Status:</label>
+    <select name="status" class="form-select">
+      <option value="Pendente" {% if ordem[6] == 'Pendente' %}selected{% endif %}>Pendente</option>
+      <option value="Instalado" {% if ordem[6] == 'Instalado' %}selected{% endif %}>Instalado</option>
+      <option value="Em manutenção" {% if ordem[6] == 'Em manutenção' %}selected{% endif %}>Em manutenção</option>
+      <option value="Danificado" {% if ordem[6] == 'Danificado' %}selected{% endif %}>Danificado</option>
+    </select>
+  </div>
+
+  <hr class="mt-4">
+  <h5 class="mt-2">Peças da Ordem de Serviço</h5>
+
+  <div id="itens-container">
+    {% for item in itens %}
+      <div class="row g-3 mb-3 item-bloco">
+        <input type="hidden" name="item_id[]" value="{{ item[0] }}">
+        <div class="col-md-3">
+          <label>Tipo</label>
+          <select name="tipo[]" class="form-select">
+            <option value="Cortina" {% if item[2] == 'Cortina' %}selected{% endif %}>Cortina</option>
+            <option value="Persiana" {% if item[2] == 'Persiana' %}selected{% endif %}>Persiana</option>
+            <option value="Papel de Parede" {% if item[2] == 'Papel de Parede' %}selected{% endif %}>Papel de Parede</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label>Altura (m)</label>
+          <input type="number" name="altura[]" class="form-control" value="{{ item[3] }}" step="0.01" required>
+        </div>
+        <div class="col-md-3">
+          <label>Comprimento (m)</label>
+          <input type="number" name="comprimento[]" class="form-control" value="{{ item[4] }}" step="0.01" required>
+        </div>
+        <div class="col-md-2">
+          <label>Material</label>
+          <input type="text" name="material[]" class="form-control" value="{{ item[5] }}" required>
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="button" class="btn btn-danger btn-sm" onclick="removerItem(this)">🗑️</button>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="mb-3">
+    <button type="button" class="btn btn-outline-primary" onclick="adicionarItem()">➕ Adicionar mais</button>
+  </div>
+
+<script>
+  function adicionarItem() {
+    const container = document.getElementById('itens-container');
+    const modelo = container.querySelector('.item-bloco');
+
+    let novoItem;
+
+    if (modelo) {
+      // Clona o primeiro item existente
+      novoItem = modelo.cloneNode(true);
+      novoItem.querySelector('input[name="item_id[]"]').value = '';
+      novoItem.querySelectorAll('input, select').forEach(el => {
+        if (el.name !== 'item_id[]') el.value = '';
+      });
+    } else {
+      // Cria um novo item do zero se não houver nenhum
+      novoItem = document.createElement('div');
+      novoItem.className = 'row g-3 mb-3 item-bloco';
+      novoItem.innerHTML = `
+        <input type="hidden" name="item_id[]" value="">
+        <div class="col-md-3">
+          <label>Tipo</label>
+          <select name="tipo[]" class="form-select" required>
+            <option value="Cortina">Cortina</option>
+            <option value="Persiana">Persiana</option>
+            <option value="Papel de Parede">Papel de Parede</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label>Altura (m)</label>
+          <input type="number" name="altura[]" class="form-control" step="0.01" required>
+        </div>
+        <div class="col-md-3">
+          <label>Comprimento (m)</label>
+          <input type="number" name="comprimento[]" class="form-control" step="0.01" required>
+        </div>
+        <div class="col-md-2">
+          <label>Material</label>
+          <input type="text" name="material[]" class="form-control">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="button" class="btn btn-danger btn-sm" onclick="removerItem(this)">🗑️</button>
+        </div>
+      `;
+    }
+
+    container.appendChild(novoItem);
+  }
+
+  function removerItem(botao) {
+    const bloco = botao.closest('.item-bloco');
+    bloco.remove();
+  }
+</script>
+
+  <div class="col-12">
+    <button type="submit" class="btn btn-success">Salvar Alterações</button>
+    <a href="/ordens_servico" class="btn btn-secondary">Cancelar</a>
+  </div>
+
+</form>
+{% endblock %}

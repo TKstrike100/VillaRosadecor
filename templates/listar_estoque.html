@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Estoque{% endblock %}
+
+{% block content %}
+<h2>Controle de Estoque</h2>
+
+<form method="POST" action="/estoque" class="mb-3">
+    <input type="text" name="filtro" class="form-control" placeholder="Buscar por produto, tipo, status ou cliente">
+</form>
+
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>ID</th><th>Produto</th><th>Tipo</th><th>Qtde</th><th>Status</th><th>Cliente</th>
+            <th>Entrada</th><th>Saída</th><th>Observações</th><th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for produto in produtos %}
+        <tr>
+            <td>{{ produto[0] }}</td><td>{{ produto[1] }}</td><td>{{ produto[2] }}</td><td>{{ produto[3] }}</td>
+            <td>{{ produto[4] }}</td><td>{{ produto[5] or '—' }}</td><td>{{ produto[6] }}</td>
+            <td>{{ produto[7] or '—' }}</td><td>{{ produto[8] }}</td>
+            <td>
+                <a href="/editar_estoque/{{ produto[0] }}" class="btn btn-sm btn-primary">Editar</a>
+                <a href="/excluir_estoque/{{ produto[0] }}" class="btn btn-sm btn-danger" onclick="return confirm('Excluir produto?')">Excluir</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
