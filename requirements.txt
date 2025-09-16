@@ -1,1 +1,4 @@
-flask
+Flask==3.0.3
+psycopg2-binary==2.9.9
+urllib3==2.2.3
+gunicorn==21.2.0
