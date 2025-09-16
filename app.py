@@ -1,108 +1,175 @@
 from flask import Flask, render_template, request, redirect
-import psycopg2
+import sqlite3
 import webbrowser
 import threading
 import os
+import shutil
 from datetime import datetime
-import urllib.parse
+from dotenv import load_dotenv  # ← NOVA DEPENDÊNCIA
 
-# ===== CONFIGURAÇÕES DO SUPABASE =====
+# Carrega variáveis de ambiente do .env se existir
+load_dotenv()
+
+# Configurações de banco de dados
+USE_SUPABASE = os.getenv('USE_SUPABASE', 'false').lower() == 'true'
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise EnvironmentError("Variáveis de ambiente SUPABASE_URL e SUPABASE_KEY são obrigatórias!")
+# Verifica se as credenciais do Supabase estão definidas quando necessário
+if USE_SUPABASE and (not SUPABASE_URL or not SUPABASE_KEY):
+    raise EnvironmentError("SUPABASE_URL e SUPABASE_KEY são obrigatórios quando USE_SUPABASE=true")
 
-# Função para conectar ao Supabase (PostgreSQL)
+def fazer_backup():
+    if os.path.exists('dados_empresa.db'):
+        if not os.path.exists('backups'):
+            os.makedirs('backups')
+        agora = datetime.now().strftime('%Y-%m-%d_%H-%M')
+        destino = f'backups/backup_{agora}.db'
+        shutil.copy('dados_empresa.db', destino)
+        print(f'Backup criado: {destino}')
+
 def conectar():
-    try:
+    if USE_SUPABASE:
+        import psycopg2
+        import urllib.parse
         conn = psycopg2.connect(
             host=urllib.parse.urlparse(SUPABASE_URL).hostname,
             port=5432,
-            database=urllib.parse.urlparse(SUPABASE_URL).path[1:],  # remove /
+            database=urllib.parse.urlparse(SUPABASE_URL).path[1:],
             user='postgres',
             password=SUPABASE_KEY,
             sslmode='require'
         )
         return conn
-    except Exception as e:
-        print(f"Erro ao conectar ao Supabase: {e}")
-        raise
+    else:
+        return sqlite3.connect('dados_empresa.db')
 
-# ===== INICIALIZAÇÃO DO BANCO =====
 def inicializar_banco():
     conn = conectar()
     cursor = conn.cursor()
 
-    # Cria tabelas se não existirem (idempotente)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clientes (
-            id SERIAL PRIMARY KEY,
-            nome TEXT NOT NULL,
-            cpf_cnpj TEXT NOT NULL,
-            endereco TEXT,
-            telefone TEXT,
-            email TEXT
-        )
-    """)
+    if USE_SUPABASE:
+        # Tabelas para PostgreSQL (Supabase)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id SERIAL PRIMARY KEY,
+                nome TEXT NOT NULL,
+                cpf_cnpj TEXT NOT NULL,
+                endereco TEXT,
+                telefone TEXT,
+                email TEXT
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS ordens_servico (
-            id SERIAL PRIMARY KEY,
-            cliente_id INTEGER REFERENCES clientes(id),
-            data_servico TEXT,
-            hora_servico TEXT,
-            local_servico TEXT,
-            comprimento REAL,
-            altura REAL,
-            materiais TEXT,
-            status TEXT
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ordens_servico (
+                id SERIAL PRIMARY KEY,
+                cliente_id INTEGER REFERENCES clientes(id),
+                data_servico TEXT,
+                hora_servico TEXT,
+                local_servico TEXT,
+                comprimento REAL,
+                altura REAL,
+                materiais TEXT,
+                status TEXT
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS itens_ordem (
-            id SERIAL PRIMARY KEY,
-            ordem_id INTEGER REFERENCES ordens_servico(id),
-            tipo TEXT,
-            altura REAL,
-            comprimento REAL,
-            material TEXT
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS itens_ordem (
+                id SERIAL PRIMARY KEY,
+                ordem_id INTEGER REFERENCES ordens_servico(id),
+                tipo TEXT,
+                altura REAL,
+                comprimento REAL,
+                material TEXT
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS estoque (
-            id SERIAL PRIMARY KEY,
-            nome_produto TEXT NOT NULL,
-            tipo TEXT NOT NULL,
-            quantidade INTEGER NOT NULL,
-            status TEXT NOT NULL,
-            cliente_id INTEGER REFERENCES clientes(id),
-            data_entrada TEXT,
-            data_saida TEXT,
-            observacoes TEXT
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS estoque (
+                id SERIAL PRIMARY KEY,
+                nome_produto TEXT NOT NULL,
+                tipo TEXT NOT NULL,
+                quantidade INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                cliente_id INTEGER REFERENCES clientes(id),
+                data_entrada TEXT,
+                data_saida TEXT,
+                observacoes TEXT
+            )
+        """)
+    else:
+        # Tabelas para SQLite (local)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS clientes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                cpf_cnpj TEXT NOT NULL,
+                endereco TEXT,
+                telefone TEXT,
+                email TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ordens_servico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente_id INTEGER,
+                data_servico TEXT,
+                hora_servico TEXT,
+                local_servico TEXT,
+                comprimento REAL,
+                altura REAL,
+                materiais TEXT,
+                status TEXT,
+                FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS itens_ordem (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ordem_id INTEGER,
+                tipo TEXT,
+                altura REAL,
+                comprimento REAL,
+                material TEXT,
+                FOREIGN KEY (ordem_id) REFERENCES ordens_servico(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS estoque (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome_produto TEXT NOT NULL,
+                tipo TEXT NOT NULL,
+                quantidade INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                cliente_id INTEGER,
+                data_entrada TEXT,
+                data_saida TEXT,
+                observacoes TEXT,
+                FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+            )
+        """)
 
     conn.commit()
     cursor.close()
     conn.close()
-    print("✅ Tabelas verificadas/criadas no Supabase.")
+    print("✅ Banco de dados verificado/criado.")
 
-# ===== FUNÇÕES AUXILIARES =====
 def salvar_item_ordem(ordem_id, tipo, altura, comprimento, material):
     conn = conectar()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO itens_ordem (ordem_id, tipo, altura, comprimento, material)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (?, ?, ?, ?, ?)
     """, (ordem_id, tipo, altura, comprimento, material))
     conn.commit()
     cursor.close()
     conn.close()
 
-# ===== FLASK APP =====
 app = Flask(__name__)
 
 @app.route('/')
@@ -119,10 +186,19 @@ def cadastro_cliente():
         email = request.form['email']
         conn = conectar()
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO clientes (nome, cpf_cnpj, endereco, telefone, email)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (nome, cpf_cnpj, endereco, telefone, email))
+        if USE_SUPABASE:
+            cursor.execute("""
+                INSERT INTO clientes (nome, cpf_cnpj, endereco, telefone, email)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (nome, cpf_cnpj, endereco, telefone, email))
+            cliente_id = cursor.fetchone()[0]
+        else:
+            cursor.execute("""
+                INSERT INTO clientes (nome, cpf_cnpj, endereco, telefone, email)
+                VALUES (?, ?, ?, ?, ?)
+            """, (nome, cpf_cnpj, endereco, telefone, email))
+            cliente_id = cursor.lastrowid
         conn.commit()
         cursor.close()
         conn.close()
@@ -135,10 +211,16 @@ def listar_clientes():
     cursor = conn.cursor()
     if request.method == 'POST':
         filtro = request.form['filtro']
-        cursor.execute("""
-            SELECT * FROM clientes
-            WHERE nome ILIKE %s OR cpf_cnpj ILIKE %s OR email ILIKE %s
-        """, (f'%{filtro}%', f'%{filtro}%', f'%{filtro}%'))
+        if USE_SUPABASE:
+            cursor.execute("""
+                SELECT * FROM clientes
+                WHERE nome ILIKE %s OR cpf_cnpj ILIKE %s OR email ILIKE %s
+            """, (f'%{filtro}%', f'%{filtro}%', f'%{filtro}%'))
+        else:
+            cursor.execute("""
+                SELECT * FROM clientes
+                WHERE nome LIKE ? OR cpf_cnpj LIKE ? OR email LIKE ?
+            """, (f'%{filtro}%', f'%{filtro}%', f'%{filtro}%'))
     else:
         cursor.execute("SELECT * FROM clientes ORDER BY nome")
     clientes = cursor.fetchall()
@@ -156,16 +238,26 @@ def editar_cliente(id):
         endereco = request.form['endereco']
         telefone = request.form['telefone']
         email = request.form['email']
-        cursor.execute("""
-            UPDATE clientes
-            SET nome=%s, cpf_cnpj=%s, endereco=%s, telefone=%s, email=%s
-            WHERE id=%s
-        """, (nome, cpf_cnpj, endereco, telefone, email, id))
+        if USE_SUPABASE:
+            cursor.execute("""
+                UPDATE clientes
+                SET nome=%s, cpf_cnpj=%s, endereco=%s, telefone=%s, email=%s
+                WHERE id=%s
+            """, (nome, cpf_cnpj, endereco, telefone, email, id))
+        else:
+            cursor.execute("""
+                UPDATE clientes
+                SET nome=?, cpf_cnpj=?, endereco=?, telefone=?, email=?
+                WHERE id=?
+            """, (nome, cpf_cnpj, endereco, telefone, email, id))
         conn.commit()
         cursor.close()
         conn.close()
         return redirect('/clientes')
-    cursor.execute("SELECT * FROM clientes WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("SELECT * FROM clientes WHERE id = %s", (id,))
+    else:
+        cursor.execute("SELECT * FROM clientes WHERE id = ?", (id,))
     cliente = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -175,7 +267,10 @@ def editar_cliente(id):
 def excluir_cliente(id):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM clientes WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("DELETE FROM clientes WHERE id = %s", (id,))
+    else:
+        cursor.execute("DELETE FROM clientes WHERE id = ?", (id,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -185,7 +280,10 @@ def excluir_cliente(id):
 def cadastro_os():
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
+    if USE_SUPABASE:
+        cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
+    else:
+        cursor.execute("SELECT id, nome FROM clientes")
     clientes = cursor.fetchall()
     if request.method == 'POST':
         cliente_id = request.form['cliente']
@@ -195,12 +293,21 @@ def cadastro_os():
         materiais = request.form.get('observacoes')
         status = request.form['status']
 
-        cursor.execute("""
-            INSERT INTO ordens_servico (
-                cliente_id, local_servico, data_servico, hora_servico, materiais, status
-            ) VALUES (%s, %s, %s, %s, %s, %s)
-        """, (cliente_id, local_servico, data_servico, hora_servico, materiais, status))
-        ordem_id = cursor.lastrowid
+        if USE_SUPABASE:
+            cursor.execute("""
+                INSERT INTO ordens_servico (
+                    cliente_id, local_servico, data_servico, hora_servico, materiais, status
+                ) VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (cliente_id, local_servico, data_servico, hora_servico, materiais, status))
+            ordem_id = cursor.fetchone()[0]
+        else:
+            cursor.execute("""
+                INSERT INTO ordens_servico (
+                    cliente_id, local_servico, data_servico, hora_servico, materiais, status
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (cliente_id, local_servico, data_servico, hora_servico, materiais, status))
+            ordem_id = cursor.lastrowid
 
         tipos = request.form.getlist('tipo[]')
         alturas = request.form.getlist('altura[]')
@@ -222,22 +329,41 @@ def listar_ordens():
     cursor = conn.cursor()
     if request.method == 'POST':
         filtro = request.form['filtro']
-        cursor.execute("""
-            SELECT os.id, c.nome, os.data_servico, os.hora_servico, os.local_servico,
-                   os.comprimento, os.altura, os.materiais, os.status
-            FROM ordens_servico os
-            JOIN clientes c ON os.cliente_id = c.id
-            WHERE c.nome ILIKE %s OR os.status ILIKE %s
-            ORDER BY os.data_servico DESC
-        """, (f'%{filtro}%', f'%{filtro}%'))
+        if USE_SUPABASE:
+            cursor.execute("""
+                SELECT os.id, c.nome, os.data_servico, os.hora_servico, os.local_servico,
+                       os.comprimento, os.altura, os.materiais, os.status
+                FROM ordens_servico os
+                JOIN clientes c ON os.cliente_id = c.id
+                WHERE c.nome ILIKE %s OR os.status ILIKE %s
+                ORDER BY os.data_servico DESC
+            """, (f'%{filtro}%', f'%{filtro}%'))
+        else:
+            cursor.execute("""
+                SELECT os.id, c.nome, os.data_servico, os.hora_servico, os.local_servico,
+                       os.comprimento, os.altura, os.materiais, os.status
+                FROM ordens_servico os
+                JOIN clientes c ON os.cliente_id = c.id
+                WHERE c.nome LIKE ? OR os.status LIKE ?
+                ORDER BY os.data_servico DESC
+            """, (f'%{filtro}%', f'%{filtro}%'))
     else:
-        cursor.execute("""
-            SELECT os.id, c.nome, os.data_servico, os.hora_servico, os.local_servico,
-                   os.comprimento, os.altura, os.materiais, os.status
-            FROM ordens_servico os
-            JOIN clientes c ON os.cliente_id = c.id
-            ORDER BY os.data_servico DESC
-        """)
+        if USE_SUPABASE:
+            cursor.execute("""
+                SELECT os.id, c.nome, os.data_servico, os.hora_servico, os.local_servico,
+                       os.comprimento, os.altura, os.materiais, os.status
+                FROM ordens_servico os
+                JOIN clientes c ON os.cliente_id = c.id
+                ORDER BY os.data_servico DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT os.id, c.nome, os.data_servico, os.hora_servico, os.local_servico,
+                       os.comprimento, os.altura, os.materiais, os.status
+                FROM ordens_servico os
+                JOIN clientes c ON os.cliente_id = c.id
+                ORDER BY os.data_servico DESC
+            """)
     ordens = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -255,11 +381,18 @@ def editar_os(id):
         materiais = request.form['materiais']
         status = request.form['status']
 
-        cursor.execute("""
-            UPDATE ordens_servico
-            SET cliente_id=%s, data_servico=%s, hora_servico=%s, local_servico=%s, materiais=%s, status=%s
-            WHERE id=%s
-        """, (cliente_id, data_servico, hora_servico, local_servico, materiais, status, id))
+        if USE_SUPABASE:
+            cursor.execute("""
+                UPDATE ordens_servico
+                SET cliente_id=%s, data_servico=%s, hora_servico=%s, local_servico=%s, materiais=%s, status=%s
+                WHERE id=%s
+            """, (cliente_id, data_servico, hora_servico, local_servico, materiais, status, id))
+        else:
+            cursor.execute("""
+                UPDATE ordens_servico
+                SET cliente_id=?, data_servico=?, hora_servico=?, local_servico=?, materiais=?, status=?
+                WHERE id=?
+            """, (cliente_id, data_servico, hora_servico, local_servico, materiais, status, id))
 
         item_ids = request.form.getlist('item_id[]')
         tipos = request.form.getlist('tipo[]')
@@ -267,39 +400,61 @@ def editar_os(id):
         comprimentos = request.form.getlist('comprimento[]')
         materiais_item = request.form.getlist('material[]')
 
-        # Excluir itens removidos
-        cursor.execute("SELECT id FROM itens_ordem WHERE ordem_id = %s", (id,))
+        if USE_SUPABASE:
+            cursor.execute("SELECT id FROM itens_ordem WHERE ordem_id = %s", (id,))
+        else:
+            cursor.execute("SELECT id FROM itens_ordem WHERE ordem_id = ?", (id,))
         itens_existentes = set(row[0] for row in cursor.fetchall())
         item_ids_form = set(int(i) for i in item_ids if i)
         itens_removidos = itens_existentes - item_ids_form
 
         for item_id in itens_removidos:
-            cursor.execute("DELETE FROM itens_ordem WHERE id = %s", (item_id,))
+            if USE_SUPABASE:
+                cursor.execute("DELETE FROM itens_ordem WHERE id = %s", (item_id,))
+            else:
+                cursor.execute("DELETE FROM itens_ordem WHERE id = ?", (item_id,))
 
-        # Atualizar ou inserir itens
         for item_id, tipo, altura, comprimento, material in zip(item_ids, tipos, alturas, comprimentos, materiais_item):
             if item_id and int(item_id) in itens_existentes:
-                cursor.execute("""
-                    UPDATE itens_ordem
-                    SET tipo=%s, altura=%s, comprimento=%s, material=%s
-                    WHERE id=%s
-                """, (tipo, altura, comprimento, material, item_id))
+                if USE_SUPABASE:
+                    cursor.execute("""
+                        UPDATE itens_ordem
+                        SET tipo=%s, altura=%s, comprimento=%s, material=%s
+                        WHERE id=%s
+                    """, (tipo, altura, comprimento, material, item_id))
+                else:
+                    cursor.execute("""
+                        UPDATE itens_ordem
+                        SET tipo=?, altura=?, comprimento=?, material=?
+                        WHERE id=?
+                    """, (tipo, altura, comprimento, material, item_id))
             else:
-                cursor.execute("""
-                    INSERT INTO itens_ordem (ordem_id, tipo, altura, comprimento, material)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (id, tipo, altura, comprimento, material))
+                if USE_SUPABASE:
+                    cursor.execute("""
+                        INSERT INTO itens_ordem (ordem_id, tipo, altura, comprimento, material)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (id, tipo, altura, comprimento, material))
+                else:
+                    cursor.execute("""
+                        INSERT INTO itens_ordem (ordem_id, tipo, altura, comprimento, material)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (id, tipo, altura, comprimento, material))
 
         conn.commit()
         cursor.close()
         conn.close()
         return redirect('/ordens_servico')
 
-    cursor.execute("SELECT * FROM ordens_servico WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("SELECT * FROM ordens_servico WHERE id = %s", (id,))
+        cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
+        cursor.execute("SELECT * FROM itens_ordem WHERE ordem_id = %s ORDER BY id", (id,))
+    else:
+        cursor.execute("SELECT * FROM ordens_servico WHERE id = ?", (id,))
+        cursor.execute("SELECT id, nome FROM clientes")
+        cursor.execute("SELECT * FROM itens_ordem WHERE ordem_id = ? ORDER BY id", (id,))
     ordem = cursor.fetchone()
-    cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
     clientes = cursor.fetchall()
-    cursor.execute("SELECT * FROM itens_ordem WHERE ordem_id = %s ORDER BY id", (id,))
     itens = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -309,7 +464,10 @@ def editar_os(id):
 def excluir_os(id):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM ordens_servico WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("DELETE FROM ordens_servico WHERE id = %s", (id,))
+    else:
+        cursor.execute("DELETE FROM ordens_servico WHERE id = ?", (id,))
     conn.commit()
     cursor.close()
     conn.close()
@@ -319,11 +477,16 @@ def excluir_os(id):
 def ficha_os(id):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM ordens_servico WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("SELECT * FROM ordens_servico WHERE id = %s", (id,))
+        cursor.execute("SELECT nome FROM clientes WHERE id = %s", (id,))
+        cursor.execute("SELECT * FROM itens_ordem WHERE ordem_id = %s ORDER BY id", (id,))
+    else:
+        cursor.execute("SELECT * FROM ordens_servico WHERE id = ?", (id,))
+        cursor.execute("SELECT nome FROM clientes WHERE id = ?", (id,))
+        cursor.execute("SELECT * FROM itens_ordem WHERE ordem_id = ? ORDER BY id", (id,))
     ordem = cursor.fetchone()
-    cursor.execute("SELECT nome FROM clientes WHERE id = %s", (ordem[1],))
     cliente = cursor.fetchone()[0]
-    cursor.execute("SELECT * FROM itens_ordem WHERE ordem_id = %s ORDER BY id", (id,))
     itens = cursor.fetchall()
 
     estimativas = []
@@ -352,7 +515,10 @@ def ficha_os(id):
 def cadastro_estoque():
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
+    if USE_SUPABASE:
+        cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
+    else:
+        cursor.execute("SELECT id, nome FROM clientes")
     clientes = cursor.fetchall()
     if request.method == 'POST':
         nome_produto = request.form['nome_produto']
@@ -362,10 +528,17 @@ def cadastro_estoque():
         cliente_id = request.form.get('cliente_id') or None
         data_entrada = request.form['data_entrada']
         observacoes = request.form['observacoes']
-        cursor.execute("""
-            INSERT INTO estoque (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, observacoes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, observacoes))
+        if USE_SUPABASE:
+            cursor.execute("""
+                INSERT INTO estoque (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, observacoes)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, observacoes))
+        else:
+            cursor.execute("""
+                INSERT INTO estoque (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, observacoes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, observacoes))
         conn.commit()
         cursor.close()
         conn.close()
@@ -378,22 +551,41 @@ def listar_estoque():
     cursor = conn.cursor()
     if request.method == 'POST':
         filtro = request.form['filtro']
-        cursor.execute("""
-            SELECT e.id, e.nome_produto, e.tipo, e.quantidade, e.status,
-                   c.nome, e.data_entrada, e.data_saida, e.observacoes
-            FROM estoque e
-            LEFT JOIN clientes c ON e.cliente_id = c.id
-            WHERE e.nome_produto ILIKE %s OR e.tipo ILIKE %s OR e.status ILIKE %s OR c.nome ILIKE %s
-            ORDER BY e.data_entrada DESC
-        """, (f'%{filtro}%', f'%{filtro}%', f'%{filtro}%', f'%{filtro}%'))
+        if USE_SUPABASE:
+            cursor.execute("""
+                SELECT e.id, e.nome_produto, e.tipo, e.quantidade, e.status,
+                       c.nome, e.data_entrada, e.data_saida, e.observacoes
+                FROM estoque e
+                LEFT JOIN clientes c ON e.cliente_id = c.id
+                WHERE e.nome_produto ILIKE %s OR e.tipo ILIKE %s OR e.status ILIKE %s OR c.nome ILIKE %s
+                ORDER BY e.data_entrada DESC
+            """, (f'%{filtro}%', f'%{filtro}%', f'%{filtro}%', f'%{filtro}%'))
+        else:
+            cursor.execute("""
+                SELECT e.id, e.nome_produto, e.tipo, e.quantidade, e.status,
+                       c.nome, e.data_entrada, e.data_saida, e.observacoes
+                FROM estoque e
+                LEFT JOIN clientes c ON e.cliente_id = c.id
+                WHERE e.nome_produto LIKE ? OR e.tipo LIKE ? OR e.status LIKE ? OR c.nome LIKE ?
+                ORDER BY e.data_entrada DESC
+            """, (f'%{filtro}%', f'%{filtro}%', f'%{filtro}%', f'%{filtro}%'))
     else:
-        cursor.execute("""
-            SELECT e.id, e.nome_produto, e.tipo, e.quantidade, e.status,
-                   c.nome, e.data_entrada, e.data_saida, e.observacoes
-            FROM estoque e
-            LEFT JOIN clientes c ON e.cliente_id = c.id
-            ORDER BY e.data_entrada DESC
-        """)
+        if USE_SUPABASE:
+            cursor.execute("""
+                SELECT e.id, e.nome_produto, e.tipo, e.quantidade, e.status,
+                       c.nome, e.data_entrada, e.data_saida, e.observacoes
+                FROM estoque e
+                LEFT JOIN clientes c ON e.cliente_id = c.id
+                ORDER BY e.data_entrada DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT e.id, e.nome_produto, e.tipo, e.quantidade, e.status,
+                       c.nome, e.data_entrada, e.data_saida, e.observacoes
+                FROM estoque e
+                LEFT JOIN clientes c ON e.cliente_id = c.id
+                ORDER BY e.data_entrada DESC
+            """)
     produtos = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -412,18 +604,29 @@ def editar_estoque(id):
         data_entrada = request.form['data_entrada']
         data_saida = request.form['data_saida']
         observacoes = request.form['observacoes']
-        cursor.execute("""
-            UPDATE estoque
-            SET nome_produto=%s, tipo=%s, quantidade=%s, status=%s, cliente_id=%s, data_entrada=%s, data_saida=%s, observacoes=%s
-            WHERE id=%s
-        """, (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, data_saida, observacoes, id))
+        if USE_SUPABASE:
+            cursor.execute("""
+                UPDATE estoque
+                SET nome_produto=%s, tipo=%s, quantidade=%s, status=%s, cliente_id=%s, data_entrada=%s, data_saida=%s, observacoes=%s
+                WHERE id=%s
+            """, (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, data_saida, observacoes, id))
+        else:
+            cursor.execute("""
+                UPDATE estoque
+                SET nome_produto=?, tipo=?, quantidade=?, status=?, cliente_id=?, data_entrada=?, data_saida=?, observacoes=?
+                WHERE id=?
+            """, (nome_produto, tipo, quantidade, status, cliente_id, data_entrada, data_saida, observacoes, id))
         conn.commit()
         cursor.close()
         conn.close()
         return redirect('/estoque')
-    cursor.execute("SELECT * FROM estoque WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("SELECT * FROM estoque WHERE id = %s", (id,))
+        cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
+    else:
+        cursor.execute("SELECT * FROM estoque WHERE id = ?", (id,))
+        cursor.execute("SELECT id, nome FROM clientes")
     produto = cursor.fetchone()
-    cursor.execute("SELECT id, nome FROM clientes ORDER BY nome")
     clientes = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -433,25 +636,26 @@ def editar_estoque(id):
 def excluir_estoque(id):
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM estoque WHERE id = %s", (id,))
+    if USE_SUPABASE:
+        cursor.execute("DELETE FROM estoque WHERE id = %s", (id,))
+    else:
+        cursor.execute("DELETE FROM estoque WHERE id = ?", (id,))
     conn.commit()
     cursor.close()
     conn.close()
     return redirect('/estoque')
 
-# ===== CONTEXT PROCESSOR =====
+def abrir_navegador():
+    webbrowser.open_new("http://localhost:5000")
+
 @app.context_processor
 def inject_now():
     return {'now': datetime.now()}
 
-# ===== INÍCIO DA APLICAÇÃO =====
 if __name__ == '__main__':
-    # Desativamos backup local — use o recurso de backup do Supabase!
+    fazer_backup()
     inicializar_banco()
-    
-    # Remove abertura automática de navegador (não funciona em cloud)
-    # threading.Timer(1.5, abrir_navegador).start()  <-- REMOVIDO
-    
-    # Render/Railway usa PORT dinâmico
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        threading.Timer(1.5, abrir_navegador).start()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
